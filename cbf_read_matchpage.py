@@ -25,12 +25,18 @@ def substring_indexes(substring, string):
         yield last_found
 
 def extract_num_name(txt):
+    """
+    Extrai o numero, nome completo e apelido dos jogadores
+    Usar somente a parte da escalacao como input.
+    """
+    # finds the player list location
     mark_num = '<span class="list-number pull-left p-t-15 m-r-10 w-20">'
     indexes_num = substring_indexes(mark_num,txt)
+    # empty list to store players' numbers
     numbers = []
     for i in indexes_num:
         num = txt[i+len(mark_num):i+len(mark_num)+2]
-        num = num.replace('<', '')
+        num = num.replace('<', '') # only runs when the number has a single digit
         numbers.append(num)
         
     mark_name = '<span class="list-desc">'
@@ -64,9 +70,12 @@ def get_date_n_time2(full_txt):
     return [date,weekday,time]
     
 def get_date_n_time(full_txt):
-    date_mark = 'class="glyphicon glyphicon-calendar"'
+    # marker to find the date and time in the html
+    date_mark = 'class="glyphicon glyphicon-calendar"' 
     time_mark = 'class="glyphicon glyphicon-time"'
+    # substring_indexes returns a generator. 'next' takes the first generated value
     date_loc = next(substring_indexes(date_mark,full_txt))
+    # 
     date = full_txt[date_loc+len(date_mark)+6::].split('</span>')[0]
     weekday = date.split(',')[0]
     date = date.split(',')[1].strip()
@@ -86,9 +95,15 @@ def get_date_filename(full_txt):
       
 
 def get_match_result(txt):
+    """
+    Gets the match result. 
+    """
     team_mark = '<h3 class="time-nome color-white">'
     lm = len(team_mark)
+    # finds the location of each team
     team_loc = substring_indexes(team_mark,txt)
+    # the first next gets the first location, the second gets the second location. 
+    # The first team is always HOME, the second is playing AWAY.
     team1 = text[next(team_loc)+lm::].split(' ')[0]
     team2 = text[next(team_loc)+lm::].split(' ')[0]
     goal_mark = '<strong class="time-gols block">'
@@ -102,19 +117,28 @@ def get_match_result(txt):
 
 def download_sumula(txt,sumula_name):
     sum_mark = 'https://conteudo.cbf.com.br/sumulas/2018/'
+    # finds the location from where the Sumula can be downloaded
     sum_loc = next(substring_indexes(sum_mark,txt))
+    # split is used to find the end of the URL
     url_sum = txt[sum_loc:sum_loc+60].split('.pdf')[0]+'.pdf'
+    # downloads the file
     urllib.request.urlretrieve(url_sum,sumula_name)
     
-def save_file(team1,team2,date,template,rodada,txt):
+def save_file(team1,team2,date,template,rodada,txt, dsumula):
+    """
+    generates a file name according to the match. BotafogoxCorinthians on 22/04/2018 becomes boco22042018
+    """
     file_name=team1[0:2]+team2[0:2]+date
+    # puts the file in the correct folder
     path ='/Brasileirao Serie A/'+rodada+' Rodada/'
     file_path = os.getcwd()+path+file_name
+    # creates a file and writes the template in it
     f=open(file_path,'w')
     f.write(template)
     f.close()
-    sumula_name = 'Brasileirao Serie A/'+rodada+' Rodada/'+team1[0:3]+team2[0:3]+date+'.pdf'
-    download_sumula(txt, sumula_name)
+    if dsumula:
+        sumula_name = 'Brasileirao Serie A/'+rodada+' Rodada/'+team1[0:3]+team2[0:3]+date+'.pdf'
+        download_sumula(txt, sumula_name)
     
 
 
@@ -136,11 +160,9 @@ for match_id in matches_list:
         print('Generating round ' + str(int(match_id)/10) + '.')
     # loops the whole code through all the matches
     link = "https://www.cbf.com.br/futebol-brasileiro/competicoes/campeonato-brasileiro-serie-a/2018/"+match_id
-    #ending = ['#escalacao', '#alteracao', '#arbitros', '#documentos', '#resumo']
-    
     f = urllib.request.urlopen(link)
     myfile = f.read()
-    myfile = myfile.decode('UTF-8')
+    myfile = myfile.decode('UTF-8') # decodes the imported bytes
     text = str(myfile)
     id_escalacao_beg = text.find('<tab id="escalacao"')
     id_escalacao_end = text[id_escalacao_beg::].find('</tab>') + id_escalacao_beg
@@ -151,7 +173,7 @@ for match_id in matches_list:
     ddmmyyyy = get_date_filename(text)
     team1, goal1, team2, goal2 = get_match_result(text)
     numbers, players, nicks = extract_num_name(escalacao_text)
-    dummy=''
+
     player_list_mandante_formated=''
     nome_sumula=team1[0:3]+team2[0:3]+ddmmyyyy
     for i in range(0,11):
@@ -166,10 +188,12 @@ for match_id in matches_list:
         n="|n"+str(i+1)+".2 = "+player + '\n'
         player_list_visitante_formated+=j+n
     player_formated=player_list_mandante_formated+player_list_visitante_formated 
-    player_list_mandante = ',\n'.join(players[0:11])
-    reserves_list_mandante = ',\n'.join(players[11:21])
-    player_list_visitante = ',\n'.join(players[21:32])
-    reserves_list_visitante= ',\n'.join(players[32::])
+    player_list_mandante = ',\n'.join(players[0:11])    # lista os jogadores titulares do time casa
+    reserves_list_mandante = ',\n'.join(players[11:21]) # lista os jogadores titulares do time fora
+    player_list_visitante = ',\n'.join(players[21:32])  # lista os jogadores reservas do time casa
+    reserves_list_visitante= ',\n'.join(players[32::])  # lista os jogadores reservas do time fora
+    # variavel dummy utilizada só pra preencher espaço e facilitar a introducao das variaveis corretas no template
+    dummy=''
     template = "{{Ficha \
     | mandante = " + team1 + "\
     | golsmandante = " + goal1 + "\
@@ -234,5 +258,5 @@ for match_id in matches_list:
     }} \
     {{DEFAULTSORT: 2018-12-02}} \
     {{Masculino Série A 2018}}"
-
-    save_file(team1,team2,ddmmyyyy,template,rodada,text)
+    download_sumula = False # if True, save_file will download each sumula
+    save_file(team1,team2,ddmmyyyy,template,rodada,text, download_sumula)
